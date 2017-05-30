@@ -1,17 +1,97 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
+
+	"golang.org/x/net/html"
 )
 
-var historicalParams = map[string]string{
-	"d": "daily",
-	"w": "weekly",
-	"m": "monthly",
-	"v": "dividends",
+// scrap the necassary json from the yahoo finance page
+func getJson(symbol string) (crumb string) {
+	if symbol == "" {
+		log.Println("No symbol provided")
+		return ""
+	}
+
+	// basic url
+	var url = strings.Replace("https://finance.yahoo.com/quote/symbol/history?p=symbol", "symbol", symbol, -1)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Println(err)
+	}
+	defer resp.Body.Close()
+
+	var js string
+	// Tokenize html
+	z := html.NewTokenizer(resp.Body)
+	for {
+		tt := z.Next()
+		switch tt {
+		case html.ErrorToken:
+			// End of the document, we're done
+			return
+		// find a start token
+		case html.StartTagToken:
+			// get tag name of token and find <script> token
+			tag, _ := z.TagName()
+			if string(tag) == "script" {
+				// forward to next token and check if it is a text token
+				token := z.Next()
+				if token == html.TextToken {
+					// select the token
+					data := z.Token()
+					// match data for reactjs "root.App.main"
+					matched, _ := regexp.MatchString("root.App.main", data.Data)
+					if matched {
+						re := regexp.MustCompile(`root.App.main\s+=\s+(?P<json>\{.*\})`)
+						matches := re.FindStringSubmatch(data.Data)
+						// map named groups
+						groups := make(map[string]string)
+						for i, name := range re.SubexpNames() {
+							if i != 0 {
+								groups[name] = matches[i]
+							}
+						}
+						js = groups["json"]
+						return js
+					}
+				}
+			}
+		}
+	}
+	return js
+}
+
+// get the crumb cookie from
+func getCrumb(raw string) (crumb string) {
+	var f interface{}
+	err := json.Unmarshal([]byte(raw), &f)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// walk through json map - what a pain in the ar**
+	m := f.(map[string]interface{})
+	context := m["context"].(map[string]interface{})
+	dispatcher := context["dispatcher"].(map[string]interface{})
+	stores := dispatcher["stores"].(map[string]interface{})
+	crumbStore := stores["CrumbStore"].(map[string]interface{})
+
+	// fmt.Printf("crumb: %v\n", crumbStore["crumb"])
+	// for k, v := range crumbStore {
+	// 	fmt.Printf("key: %v calue: %v\n", k, v)
+	// }
+
+	return crumbStore["crumb"].(string)
 }
 
 func Historical(symbol, start, end, param string) string {
@@ -82,19 +162,24 @@ func orderDates(start, end string) (string, string) {
 
 // define symbol flags
 var symbol = flag.String("symbol", "", "stock symbol e.g. bas.de")
-var startDate = flag.String("start", "", "start date in format yyyy-mm-dd")
-var endDate = flag.String("end", "", "start date in format yyyy-mm-dd")
-var param = flag.String("p", "d", "param for query type, e.g. d for daily quotes")
+
+// var startDate = flag.String("start", "", "start date in format yyyy-mm-dd")
+// var endDate = flag.String("end", "", "start date in format yyyy-mm-dd")
+// var interval = flag.String("interval", "1d", "param for query type, e.g. d for daily quotes")
 
 func main() {
 	flag.Parse()
-	fmt.Println(*symbol, *startDate, *endDate, *param)
+	fmt.Println(*symbol)
+
+	js := getJson(*symbol)
+	crumb := getCrumb(js)
+	fmt.Printf("%T %v %s\n", crumb, len(crumb), crumb)
 
 	// s, e := orderDates(*startDate, *endDate)
 	// println(s, e)
 
-	url := Historical(*symbol, *startDate, *endDate, *param)
-	fmt.Println(url)
+	// url := Historical(*symbol, *startDate, *endDate, *param)
+	// fmt.Println(url)
 
 	// url := "http://example.org/"
 	// resp, err := http.Get(url)
