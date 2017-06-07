@@ -1,7 +1,11 @@
 package yahoofinancequery
 
+import (
+	"testing"
+)
+
 // test html generated from finance.yahoo.com
-var testHTML = "
+var testHTML = `
     <!DOCTYPE html>
     <html>
     <head">
@@ -38,7 +42,28 @@ var testHTML = "
         </script>
     </body>
     </html>
-"
+`
 
+// dateTests is a table for testing ordering Dates
+var dateTests = []struct {
+	s    string // start input
+	e    string // end input
+	expS string // expected start output
+	expE string // expected end output
+}{
+	{"", "", "", ""},                                         // no input
+	{"2017-06-07", "", "2017-06-07", ""},                     // only start date
+	{"", "2017-06-07", "", "2017-06-07"},                     // only end date
+	{"2017-06-07", "2017-06-07", "2017-06-07", "2017-06-07"}, // both same date
+	{"2017-06-07", "2017-07-07", "2017-06-07", "2017-07-07"}, // default s earlier then e
+	{"2017-07-07", "2017-06-07", "2017-06-07", "2017-07-07"}, // s later than e
+}
 
-
+func TestOrderDates(t *testing.T) {
+	for _, tt := range dateTests {
+		s, e := orderDates(tt.s, tt.e)
+		if s != tt.expS && e != tt.expE {
+			t.Errorf("orderDates(%d, %d): expected %d %d, actual %d %d", tt.s, tt.e, tt.expS, tt.expE, s, e)
+		}
+	}
+}

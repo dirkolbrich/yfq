@@ -16,7 +16,7 @@ symbol = the symbol of the stock
 startDate = start date as unix time stamp
 endDate = end date as unix time stamp
 interval = what time interval (1d = daily, 1wk = weekly, 1mo = monthly)
-type = type of the query (history, div, split)
+event = type of the query (history, div, split)
 crumb = a cookie parameter from the main stock page to verify, that you come from the actual yahoo page
 
 to retrieve the crumb, first a call to the main stock page is necassary:

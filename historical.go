@@ -1,9 +1,8 @@
-package main
+package yahoofinancequery
 
 import (
 	"encoding/csv"
-	"flag"
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,27 +12,28 @@ import (
 	"time"
 )
 
+// Quote is the basic struc representing a single quote
 type Quote struct {
-	Date     string
+	Date     time.Time
 	Symbol   string
-	Open     string
-	High     string
-	Low      string
-	Close    string
-	AdjClose string
-	Volume   string
+	Open     float64
+	High     float64
+	Low      float64
+	Close    float64
+	AdjClose float64
+	Volume   int64
 }
 
 // Historical fetches the latest historical quotes from finance.yahoo.com
-func Historical(symbol, start, end string) (quotes []Quote) {
+func Historical(symbol, start, end string) (quotes []Quote, err error) {
 	var crumbURL = "https://finance.yahoo.com/quote/{symbol}/history?p={symbol}"
 	var historyURL = "https://query1.finance.yahoo.com/v7/finance/download/{symbol}?"
 	var configURL = "period1={start}&period2={end}&interval=1d&events=history&crumb={crumb}"
 
 	// validate symbol
 	if len(symbol) == 0 {
-		log.Println("no symbol provided")
-		return quotes
+		err := errors.New("No symbol provided")
+		return quotes, err
 	}
 
 	// query crumb url
@@ -41,7 +41,10 @@ func Historical(symbol, start, end string) (quotes []Quote) {
 	crumb, cookies := getCrumb(url)
 
 	start, end = orderDates(start, end)
-	start, end = parseDates(start, end)
+	start, end, err = parseDates(start, end)
+	if err != nil {
+		return quotes, err
+	}
 
 	// modify configURL
 	historyURL = strings.Replace(historyURL, "{symbol}", symbol, -1)
@@ -54,14 +57,17 @@ func Historical(symbol, start, end string) (quotes []Quote) {
 	// query for csv
 	data, err := readCSVFromURL(queryURL, cookies)
 	if err != nil {
-		log.Fatal("Could not establish new request: ", err)
+		err := errors.New("Could not establish new request: ")
+		return quotes, err
 	}
 
 	quotes = parseHistoricalCSV(symbol, data)
 
-	return quotes
+	return quotes, nil
 }
 
+// readCSVFromURL fetches the  csv file from the provided url
+// uses the provides cookies
 func readCSVFromURL(url string, cookies []*http.Cookie) ([][]string, error) {
 	// set client
 	client := &http.Client{
@@ -94,6 +100,7 @@ func readCSVFromURL(url string, cookies []*http.Cookie) ([][]string, error) {
 	return data, nil
 }
 
+// parseHistoricalCSV parse the returned csv into single Quotes and adds these to []Quote
 func parseHistoricalCSV(symbol string, data [][]string) (quotes []Quote) {
 	var csvHeader []string
 	// parse csv to map
@@ -102,32 +109,31 @@ func parseHistoricalCSV(symbol string, data [][]string) (quotes []Quote) {
 			csvHeader = row
 			continue
 		}
-		if id < 10 {
-			// rearange row to header
-			quote := make(map[string]string)
-			for i, v := range row {
-				quote[csvHeader[i]] = v
-			}
-
-			// create new Quote and populate
-			q := Quote{}
-			q.Date = quote["Date"]
-			q.Symbol = strings.ToUpper(symbol)
-			q.Open = quote["Open"]
-			q.High = quote["High"]
-			q.Low = quote["Low"]
-			q.Close = quote["Close"]
-			q.AdjClose = quote["Adj Close"]
-			q.Volume = quote["Volume"]
-
-			quotes = append(quotes, q)
+		// rearange row to header
+		quote := make(map[string]string)
+		for i, v := range row {
+			quote[csvHeader[i]] = v
 		}
+
+		// create new Quote and populate
+		q := Quote{}
+		q.Date, _ = time.Parse("2006-01-02", quote["Date"])
+		q.Symbol = strings.ToUpper(symbol)
+		q.Open, _ = strconv.ParseFloat(quote["Open"], 64)
+		q.High, _ = strconv.ParseFloat(quote["High"], 64)
+		q.Low, _ = strconv.ParseFloat(quote["Low"], 64)
+		q.Close, _ = strconv.ParseFloat(quote["Close"], 64)
+		q.AdjClose, _ = strconv.ParseFloat(quote["Adj Close"], 64)
+		q.Volume, _ = strconv.ParseInt(quote["Volume"], 10, 64)
+
+		quotes = append(quotes, q)
 	}
 
 	return
 }
 
-// getCrumb scraps the neccessary json and cookie from the yahoo finance page and returns the crumb string with the cookies
+// getCrumb scraps the neccessary json and cookie from the yahoo finance page
+// and returns the crumb string with the cookies
 func getCrumb(url string) (crumb string, cookies []*http.Cookie) {
 	// set client
 	client := &http.Client{
@@ -176,8 +182,8 @@ func getCrumb(url string) (crumb string, cookies []*http.Cookie) {
 	return crumb, cookies
 }
 
-// parseDates parses start and end date to UNIX time string
-func parseDates(start, end string) (s, e string) {
+// parseDates parses start and end date and converts to UNIX time string
+func parseDates(start, end string) (s, e string, err error) {
 	start, end = orderDates(start, end)
 
 	if len(start) == 0 {
@@ -202,10 +208,11 @@ func parseDates(start, end string) (s, e string) {
 		e = strconv.Itoa(int(date.Unix()))
 	}
 
-	return s, e
+	return s, e, nil
 }
 
-// orderDates validates the correct order of start to end - start must be earlier than end
+// orderDates validates the correct order of start to end
+// start must be earlier than end
 func orderDates(start, end string) (string, string) {
 	if (start > end) && (end != "") {
 		tmp := start
@@ -214,17 +221,4 @@ func orderDates(start, end string) (string, string) {
 	}
 
 	return start, end
-}
-
-// define symbol flags
-var symbol = flag.String("symbol", "", "stock symbol e.g. bas.de")
-var start = flag.String("start", "", "start date in format yyyy-mm-dd")
-var end = flag.String("end", "", "start date in format yyyy-mm-dd")
-
-func main() {
-	flag.Parse()
-	// fmt.Println(*symbol, *start, *end)
-
-	quotes := Historical(*symbol, *start, *end)
-	fmt.Printf("%#v", quotes)
 }
