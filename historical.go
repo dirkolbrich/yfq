@@ -3,6 +3,7 @@ package yahoofinancequery
 import (
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -183,27 +184,28 @@ func getCrumb(url string) (crumb string, cookies []*http.Cookie) {
 }
 
 // parseDates parses start and end date and converts to UNIX time string
+// start and end must be a date format according to ISO 8601: yyyy-mm-dd or an empty string
 func parseDates(start, end string) (s, e string, err error) {
-	start, end = orderDates(start, end)
-
 	if len(start) == 0 {
 		// set to min
 		s = "0"
 	} else {
 		date, err := time.Parse("2006-01-02", start)
 		if err != nil {
-			log.Fatal("Could not parse string to time: ", err)
+			err = fmt.Errorf("Could not parse string \"%s\" to time: %v", start, err)
+			return start, end, err
 		}
 		s = strconv.Itoa(int(date.Unix()))
 	}
 
 	if len(end) == 0 {
-		// set to max
-		e = "9999999999"
+		// set to actual date
+		e = strconv.Itoa(int(time.Now().Unix()))
 	} else {
 		date, err := time.Parse("2006-01-02", end)
 		if err != nil {
-			log.Fatal("Could not parse string to time: ", err)
+			err = fmt.Errorf("Could not parse string \"%s\" to time: %v", end, err)
+			return start, end, err
 		}
 		e = strconv.Itoa(int(date.Unix()))
 	}

@@ -1,7 +1,11 @@
 package yahoofinancequery
 
 import (
+	"errors"
+	"reflect"
+	"strconv"
 	"testing"
+	"time"
 )
 
 // test html generated from finance.yahoo.com
@@ -43,6 +47,37 @@ var testHTML = `
     </body>
     </html>
 `
+
+// nowUnix represents the string for the now Unix time
+var unixNow = strconv.Itoa(int(time.Now().Unix()))
+
+// 2016-12-31 - 1483142400 GMT
+// 2017-06-01 - 1496275200 GMT
+
+// dateParseTests is a table for testing parsing Dates
+var parseDateTests = []struct {
+	s      string // start input
+	e      string // end input
+	expS   string // expected start output
+	expE   string // expected end output
+	expErr error  // expected error output
+}{
+	{"", "", "0", unixNow, nil},                                   // no input
+	{"2017-06-01", "", "1496275200", unixNow, nil},                // only start date
+	{"", "2017-06-01", "0", "1496275200", nil},                    // only end date
+	{"2016-12-31", "2017-06-01", "1483142400", "1496275200", nil}, // both same date
+	{"16-12-31", "", "16-12-31", "", errors.New("error")},         // start invalid date
+	{"", "17-06-01", "", "17-06-01", errors.New("error")},         // start invalid date
+}
+
+func TestParseDates(t *testing.T) {
+	for n, tt := range parseDateTests {
+		s, e, err := parseDates(tt.s, tt.e)
+		if (s != tt.expS) || (e != tt.expE) || (reflect.TypeOf(err) != reflect.TypeOf(tt.expErr)) {
+			t.Errorf("parseDates(%d, %d): expected %d %d %v, actual %d %d %v", tt.s, tt.e, tt.expS, tt.expE, tt.expErr, s, e, err)
+		}
+	}
+}
 
 // dateTests is a table for testing ordering Dates
 var dateTests = []struct {
