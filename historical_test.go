@@ -1,4 +1,4 @@
-package yfc
+package yfq
 
 import (
 	"errors"

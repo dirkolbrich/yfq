@@ -1,21 +1,21 @@
-# yfc - Yahoo Finance Query in golang
+# yfq - Yahoo Finance Query in golang
 
 A web scrapper to query the Yahoo finance page for stock quotes.
 
 ## Basic example
 
 ```go
-ackage main
+package main
 
 import (
     "fmt"
 
-    "github.com/dirkolbrich/yfc"
+    "github.com/dirkolbrich/yfq"
 )
 
 func main() {
     // create a new Historical
-    historical := yfc.NewHistorical()
+    historical := yfq.NewHistorical()
 
     // start a query
     quotes, _ := historical.Query("AAPL")

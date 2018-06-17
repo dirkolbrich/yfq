@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/dirkolbrich/yfc"
+	"github.com/dirkolbrich/yfq"
 )
 
 func main() {
 	// create a new Historical
-	historical := yfc.NewHistorical()
+	historical := yfq.NewHistorical()
 
 	// start a query
 	quotes, err := historical.Query("AAPL")
